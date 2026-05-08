@@ -1,0 +1,64 @@
+# ============================================================
+# Applications VM — Sample App (3 microservices)
+# ============================================================
+# Chạy trên VM: 192.168.100.57
+# OTLP traces/metrics → OTel Collector trên Observability VM
+# ============================================================
+
+services:
+  # ==========================================================
+  # SAMPLE APP - 3 Microservices
+  # ==========================================================
+
+  api-gateway:
+    build: .
+    container_name: api-gateway
+    command: ["python", "api_gateway.py"]
+    environment:
+      # Trỏ OTLP về OTel Collector trên Observability VM
+      - OTEL_EXPORTER_OTLP_ENDPOINT=192.168.100.55:4317
+      - ORDER_SERVICE_URL=http://order-service:5001
+    ports:
+      - "5000:5000"
+    networks:
+      - observability
+
+  order-service:
+    build: .
+    container_name: order-service
+    command: ["python", "order_service.py"]
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=192.168.100.55:4317
+      - PAYMENT_SERVICE_URL=http://payment-service:5002
+    ports:
+      - "5001:5001"
+    networks:
+      - observability
+
+  payment-service:
+    build: .
+    container_name: payment-service
+    command: ["python", "payment_service.py"]
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=192.168.100.55:4317
+    ports:
+      - "5002:5002"
+    networks:
+      - observability
+
+  # ==========================================================
+  # TRAFFIC GENERATOR - Tự động tạo requests
+  # ==========================================================
+  traffic-gen:
+    build: .
+    container_name: traffic-gen
+    command: ["python", "traffic_gen.py"]
+    networks:
+      - observability
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+
+networks:
+  observability:
+    external: true

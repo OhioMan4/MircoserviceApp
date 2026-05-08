@@ -1,0 +1,193 @@
+// ============================================================
+// Grafana Alloy — Applications VM (192.168.100.57)
+// ============================================================
+// Thu thập logs từ VM chạy app và push về Loki trên
+// Observability VM (192.168.100.55:3100)
+//
+// Pipeline:
+//   Source → Process (parse, extract, filter) → Push Loki
+// ============================================================
+
+// ============================================================
+// PHẦN 1: DOCKER CONTAINER LOGS
+// ============================================================
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker_labels" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container_name"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker_labels.output
+  forward_to = [loki.process.docker_pipeline.receiver]
+}
+
+// ============================================================
+// LOG PROCESSING PIPELINE — Docker containers
+// ============================================================
+
+loki.process "docker_pipeline" {
+  // Drop health check logs
+  stage.drop {
+    expression = "(?i)(GET|HEAD)\\s+/(health|ready|healthz|livez|readyz)"
+    drop_counter_reason = "health_check"
+  }
+
+  // Parse JSON logs
+  stage.json {
+    expressions = {
+      level    = "level",
+      msg      = "msg",
+      caller   = "caller",
+      trace_id = "trace_id",
+      span_id  = "span_id",
+    }
+  }
+
+  // Parse logfmt (fallback)
+  stage.logfmt {
+    mapping = {
+      level  = "",
+      msg    = "",
+      caller = "",
+      ts     = "",
+    }
+  }
+
+  // Chuẩn hoá log level → lowercase
+  stage.template {
+    source   = "level"
+    template = "{{ ToLower .Value }}"
+  }
+
+  stage.replace {
+    expression = "warning"
+    source     = "level"
+    replace    = "warn"
+  }
+
+  // Gán detected_level label
+  stage.labels {
+    values = {
+      detected_level = "level",
+    }
+  }
+
+  // Static labels — đánh dấu VM nguồn
+  stage.static_labels {
+    values = {
+      source = "docker",
+      vm     = "app",
+    }
+  }
+
+  // Drop debug logs (comment out nếu cần debug)
+  stage.drop {
+    source              = "level"
+    expression          = "debug"
+    drop_counter_reason = "debug_level"
+  }
+
+  forward_to = [loki.write.loki_endpoint.receiver]
+}
+
+// ============================================================
+// PHẦN 2: HOST SYSTEM LOGS
+// ============================================================
+
+local.file_match "syslog" {
+  path_targets = [{
+    __path__  = "/var/log/host/syslog",
+    job       = "syslog",
+    log_type  = "system",
+  }]
+}
+
+loki.source.file "syslog" {
+  targets    = local.file_match.syslog.targets
+  forward_to = [loki.process.host_pipeline.receiver]
+}
+
+local.file_match "auth_log" {
+  path_targets = [{
+    __path__  = "/var/log/host/auth.log",
+    job       = "auth",
+    log_type  = "security",
+  }]
+}
+
+loki.source.file "auth_log" {
+  targets    = local.file_match.auth_log.targets
+  forward_to = [loki.process.host_pipeline.receiver]
+}
+
+// ============================================================
+// LOG PROCESSING PIPELINE — Host logs
+// ============================================================
+
+loki.process "host_pipeline" {
+  stage.regex {
+    expression = "^\\w+\\s+\\d+\\s+[\\d:]+\\s+(?P<hostname>\\S+)\\s+(?P<syslog_service>[^\\[\\s:]+)"
+  }
+
+  stage.labels {
+    values = {
+      hostname       = "",
+      syslog_service = "",
+    }
+  }
+
+  stage.regex {
+    expression = "(?i)(?P<severity>error|fail|panic|crit|warn|alert|emerg)"
+  }
+
+  stage.template {
+    source   = "severity"
+    template = "{{ if .Value }}{{ ToLower .Value }}{{ else }}info{{ end }}"
+  }
+
+  stage.labels {
+    values = {
+      detected_level = "severity",
+    }
+  }
+
+  stage.static_labels {
+    values = {
+      source = "host",
+      vm     = "app",
+    }
+  }
+
+  forward_to = [loki.write.loki_endpoint.receiver]
+}
+
+// ============================================================
+// PUSH VỀ LOKI (Observability VM)
+// ============================================================
+
+loki.write "loki_endpoint" {
+  endpoint {
+    url = "http://192.168.100.55:3100/loki/api/v1/push"
+  }
+}

@@ -1,0 +1,255 @@
+# ============================================================
+# Applications VM — Microservices + Infrastructure
+# ============================================================
+# Chạy trên VM: 192.168.100.57
+# OTLP traces/metrics → OTel Collector trên Observability VM
+# ============================================================
+
+services:
+  # ==========================================================
+  # INFRASTRUCTURE — Database + Cache
+  # ==========================================================
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d orders"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - observability
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - observability
+
+  # ==========================================================
+  # MICROSERVICES
+  # ==========================================================
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=192.168.100.55:4317
+      - ORDER_SERVICE_URL=http://order-service:5001
+    ports:
+      - "5000:5000"
+    depends_on:
+      order-service:
+        condition: service_started
+    networks:
+      - observability
+
+  order-service:
+    build: ./order-service
+    container_name: order-service
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=192.168.100.55:4317
+      - PAYMENT_SERVICE_URL=http://payment-service:5002
+      - DATABASE_URL=postgresql://app:app_secret@postgres:5432/orders
+      - REDIS_URL=redis://redis:6379/0
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    ports:
+      - "5001:5001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - observability
+
+  payment-service:
+    build: ./payment-service
+    container_name: payment-service
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=192.168.100.55:4317
+    ports:
+      - "5002:5002"
+    networks:
+      - observability
+
+  # ==========================================================
+  # KAFKA — Event Streaming Platform (KRaft mode)
+  # ==========================================================
+
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: kafka
+    environment:
+      # KRaft mode (no ZooKeeper)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Listeners
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Cluster
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      # Topic defaults
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 24
+      # JMX for monitoring
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: kafka
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"
+      ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - observability
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    container_name: kafka-exporter
+    command:
+      - "--kafka.server=kafka:9092"
+      - "--topic.filter=.*"
+      - "--group.filter=.*"
+    ports:
+      - "9308:9308"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - observability
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    environment:
+      KAFKA_CLUSTERS_0_NAME: observability-lab
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    ports:
+      - "8585:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - observability
+
+  # ==========================================================
+  # KAFKA EVENT WORKERS
+  # ==========================================================
+
+  notification-worker:
+    build: ./notification-worker
+    container_name: notification-worker
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=192.168.100.55:4317
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - DATABASE_URL=postgresql://app:app_secret@postgres:5432/orders
+    ports:
+      - "5004:5004"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - observability
+
+  inventory-worker:
+    build: ./inventory-worker
+    container_name: inventory-worker
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=192.168.100.55:4317
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - DATABASE_URL=postgresql://app:app_secret@postgres:5432/orders
+    ports:
+      - "5005:5005"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - observability
+
+  # ==========================================================
+  # TRAFFIC GENERATOR
+  # ==========================================================
+
+  traffic-gen:
+    build: ./traffic-gen
+    container_name: traffic-gen
+    ports:
+      - "5003:5003"
+    depends_on:
+      api-gateway:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - observability
+
+  # ==========================================================
+  # WEB UI
+  # ==========================================================
+
+  web-ui:
+    build: ./web-ui
+    container_name: web-ui
+    ports:
+      - "8580:8080"
+    depends_on:
+      api-gateway:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - observability
+
+# ==========================================================
+# VOLUMES + NETWORKS
+# ==========================================================
+
+volumes:
+  postgres_data:
+  kafka_data:
+
+networks:
+  observability:
+    external: true

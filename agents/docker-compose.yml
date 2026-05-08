@@ -1,0 +1,94 @@
+# ============================================================
+# Applications VM — Monitoring Agents
+# ============================================================
+# Chạy trên VM: 192.168.100.57
+# Các agent thu thập metrics/logs từ VM này
+# và gửi về Observability VM (192.168.100.55)
+#
+# Bao gồm:
+#   - Node Exporter: metrics hệ thống (CPU, RAM, disk, network)
+#   - cAdvisor: metrics từng container (CPU, RAM, network)
+#   - Alloy: thu thập Docker logs + host logs → push về Loki
+# ============================================================
+
+services:
+  # ==========================================================
+  # NODE EXPORTER — System Metrics
+  # ==========================================================
+  # Expose metrics hệ thống tại :9100
+  # Prometheus trên Observability VM sẽ pull metrics từ đây
+  # ==========================================================
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.0
+    container_name: node-exporter
+    command:
+      - "--path.rootfs=/host"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    volumes:
+      - "/:/host:ro,rslave"
+    ports:
+      - "9100:9100"         # Expose ra ngoài để Prometheus scrape
+    networks:
+      - observability
+    restart: unless-stopped
+    pid: host
+
+  # ==========================================================
+  # cADVISOR — Container Metrics
+  # ==========================================================
+  # Expose metrics từng container tại :8080
+  # Prometheus trên Observability VM sẽ pull metrics từ đây
+  # ==========================================================
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.51.0
+    container_name: cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "8080:8080"         # Expose ra ngoài để Prometheus scrape
+    networks:
+      - observability
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+
+  # ==========================================================
+  # GRAFANA ALLOY — Log Collector
+  # ==========================================================
+  # Thu thập Docker container logs + host logs
+  # Push về Loki trên Observability VM (192.168.100.55:3100)
+  # ==========================================================
+
+  alloy:
+    image: grafana/alloy:v1.13.2
+    container_name: alloy
+    user: root
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log/host:ro
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+    ports:
+      - "12345:12345"       # Alloy UI
+    networks:
+      - observability
+    restart: unless-stopped
+
+volumes:
+  alloy_data:
+
+networks:
+  observability:
+    external: true

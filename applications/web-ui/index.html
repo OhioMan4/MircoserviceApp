@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Observability Lab — Dashboard</title>
+    <meta name="description" content="Observability Lab application dashboard for monitoring microservices, orders, and products.">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">🔭</div>
+            <span class="brand-text">Obs Lab</span>
+        </div>
+        <nav class="sidebar-nav">
+            <button class="nav-btn active" data-tab="dashboard" id="nav-dashboard">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">Dashboard</span>
+            </button>
+            <button class="nav-btn" data-tab="products" id="nav-products">
+                <span class="nav-icon">📦</span>
+                <span class="nav-label">Products</span>
+            </button>
+            <button class="nav-btn" data-tab="orders" id="nav-orders">
+                <span class="nav-icon">🛒</span>
+                <span class="nav-label">Orders</span>
+            </button>
+            <button class="nav-btn" data-tab="loadtest" id="nav-loadtest">
+                <span class="nav-icon">⚡</span>
+                <span class="nav-label">Load Test</span>
+            </button>
+            <button class="nav-btn" data-tab="events" id="nav-events">
+                <span class="nav-icon">📡</span>
+                <span class="nav-label">Events</span>
+            </button>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="version-badge">v4.0</div>
+        </div>
+    </aside>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="main-content">
+        <!-- ===== HEADER ===== -->
+        <header class="header">
+            <div class="header-left">
+                <h1 class="page-title" id="page-title">Dashboard</h1>
+            </div>
+            <div class="header-right">
+                <div class="live-indicator" id="live-indicator">
+                    <span class="live-dot"></span>
+                    <span>Live</span>
+                </div>
+                <button class="refresh-btn" id="btn-refresh" title="Refresh data">↻</button>
+            </div>
+        </header>
+
+        <!-- ===== DASHBOARD TAB ===== -->
+        <section class="tab-content active" id="tab-dashboard">
+            <!-- Health Status -->
+            <div class="section-header">
+                <h2>Service Health</h2>
+            </div>
+            <div class="health-grid" id="health-grid">
+                <div class="health-card" id="health-api-gateway">
+                    <div class="health-icon">🌐</div>
+                    <div class="health-info">
+                        <span class="health-name">API Gateway</span>
+                        <span class="health-status checking">Checking...</span>
+                    </div>
+                </div>
+                <div class="health-card" id="health-order-service">
+                    <div class="health-icon">📋</div>
+                    <div class="health-info">
+                        <span class="health-name">Order Service</span>
+                        <span class="health-status checking">Checking...</span>
+                    </div>
+                </div>
+                <div class="health-card" id="health-db">
+                    <div class="health-icon">🗄️</div>
+                    <div class="health-info">
+                        <span class="health-name">PostgreSQL</span>
+                        <span class="health-status checking">Checking...</span>
+                    </div>
+                </div>
+                <div class="health-card" id="health-cache">
+                    <div class="health-icon">⚡</div>
+                    <div class="health-info">
+                        <span class="health-name">Redis Cache</span>
+                        <span class="health-status checking">Checking...</span>
+                    </div>
+                </div>
+                <div class="health-card" id="health-notification">
+                    <div class="health-icon">🔔</div>
+                    <div class="health-info">
+                        <span class="health-name">Notification Worker</span>
+                        <span class="health-status checking">Checking...</span>
+                    </div>
+                </div>
+                <div class="health-card" id="health-inventory">
+                    <div class="health-icon">📦</div>
+                    <div class="health-info">
+                        <span class="health-name">Inventory Worker</span>
+                        <span class="health-status checking">Checking...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="section-header">
+                <h2>Quick Stats</h2>
+            </div>
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-products">—</div>
+                    <div class="stat-label">Products</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-orders">—</div>
+                    <div class="stat-label">Recent Orders</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-cache-source">—</div>
+                    <div class="stat-label">Cache Source</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-last-order">—</div>
+                    <div class="stat-label">Last Order</div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="section-header">
+                <h2>Quick Actions</h2>
+            </div>
+            <div class="actions-grid">
+                <button class="action-btn primary" id="btn-quick-order">
+                    <span class="action-icon">🛒</span>
+                    <span>Create Random Order</span>
+                </button>
+                <button class="action-btn secondary" id="btn-quick-products">
+                    <span class="action-icon">📦</span>
+                    <span>Refresh Products</span>
+                </button>
+                <button class="action-btn secondary" id="btn-quick-health">
+                    <span class="action-icon">💚</span>
+                    <span>Check Health</span>
+                </button>
+            </div>
+
+            <!-- Activity Feed -->
+            <div class="section-header">
+                <h2>Activity Feed</h2>
+                <button class="clear-btn" id="btn-clear-feed">Clear</button>
+            </div>
+            <div class="activity-feed" id="activity-feed">
+                <div class="feed-empty">No activity yet. Interact with the app to see events here.</div>
+            </div>
+        </section>
+
+        <!-- ===== PRODUCTS TAB ===== -->
+        <section class="tab-content" id="tab-products">
+            <div class="section-header">
+                <h2>Product Catalog</h2>
+                <button class="action-btn small secondary" id="btn-reload-products">↻ Reload</button>
+            </div>
+            <div class="table-container">
+                <table class="data-table" id="products-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="products-tbody">
+                        <tr><td colspan="6" class="loading-cell">Loading products...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="table-footer">
+                <span class="source-badge" id="products-source">Source: —</span>
+            </div>
+        </section>
+
+        <!-- ===== ORDERS TAB ===== -->
+        <section class="tab-content" id="tab-orders">
+            <!-- Create Order Form -->
+            <div class="section-header">
+                <h2>Create New Order</h2>
+            </div>
+            <form class="order-form" id="order-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="order-product">Product</label>
+                        <select id="order-product" required>
+                            <option value="">Select a product...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="order-quantity">Quantity</label>
+                        <input type="number" id="order-quantity" min="1" max="100" value="1" required>
+                    </div>
+                    <div class="form-group form-action">
+                        <button type="submit" class="action-btn primary" id="btn-submit-order">
+                            🛒 Place Order
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Order Result -->
+            <div class="order-result hidden" id="order-result"></div>
+
+            <!-- Orders History -->
+            <div class="section-header">
+                <h2>Order History</h2>
+                <button class="action-btn small secondary" id="btn-reload-orders">↻ Reload</button>
+            </div>
+            <div class="table-container">
+                <table class="data-table" id="orders-table">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Product</th>
+                            <th>Qty</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Payment</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orders-tbody">
+                        <tr><td colspan="7" class="loading-cell">Loading orders...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ===== LOAD TEST TAB ===== -->
+        <section class="tab-content" id="tab-loadtest">
+            <!-- Status -->
+            <div class="section-header">
+                <h2>Traffic Generator</h2>
+                <div class="lt-status-badge" id="lt-status-badge">
+                    <span class="lt-dot" id="lt-dot"></span>
+                    <span id="lt-status-text">Checking...</span>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="lt-controls-card">
+                <div class="lt-form-grid">
+                    <div class="lt-form-group">
+                        <label for="lt-scenario">Scenario</label>
+                        <select id="lt-scenario">
+                            <option value="normal">🔄 Normal Traffic</option>
+                            <option value="flash_sale">🔥 Flash Sale</option>
+                            <option value="browse_heavy">👀 Browse Heavy</option>
+                            <option value="health_check">💚 Health Check Only</option>
+                            <option value="event_driven">📡 Event-Driven Pipeline</option>
+                        </select>
+                        <div class="lt-scenario-desc" id="lt-scenario-desc">
+                            Balanced user activity — browsing, ordering, viewing history
+                        </div>
+                    </div>
+                    <div class="lt-form-group">
+                        <label for="lt-rate">Rate (req/s)</label>
+                        <div class="lt-slider-wrap">
+                            <input type="range" id="lt-rate" min="1" max="20" value="2" class="lt-slider">
+                            <span class="lt-slider-value" id="lt-rate-value">2</span>
+                        </div>
+                    </div>
+                    <div class="lt-form-group">
+                        <label for="lt-duration">Duration (seconds)</label>
+                        <div class="lt-slider-wrap">
+                            <input type="range" id="lt-duration" min="10" max="300" step="10" value="60" class="lt-slider">
+                            <span class="lt-slider-value" id="lt-duration-value">60s</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="lt-actions">
+                    <button class="action-btn primary lt-start-btn" id="btn-lt-start">
+                        <span>▶</span> Start Traffic
+                    </button>
+                    <button class="action-btn danger lt-stop-btn" id="btn-lt-stop" disabled>
+                        <span>⏹</span> Stop
+                    </button>
+                </div>
+            </div>
+
+            <!-- Live Stats -->
+            <div class="section-header">
+                <h2>Live Stats</h2>
+            </div>
+            <div class="lt-stats-grid">
+                <div class="lt-stat-card">
+                    <div class="lt-stat-icon">📤</div>
+                    <div class="lt-stat-info">
+                        <span class="lt-stat-value" id="lt-stat-total">0</span>
+                        <span class="lt-stat-label">Total Requests</span>
+                    </div>
+                </div>
+                <div class="lt-stat-card success">
+                    <div class="lt-stat-icon">✅</div>
+                    <div class="lt-stat-info">
+                        <span class="lt-stat-value" id="lt-stat-success">0</span>
+                        <span class="lt-stat-label">Success</span>
+                    </div>
+                </div>
+                <div class="lt-stat-card error">
+                    <div class="lt-stat-icon">❌</div>
+                    <div class="lt-stat-info">
+                        <span class="lt-stat-value" id="lt-stat-errors">0</span>
+                        <span class="lt-stat-label">Errors</span>
+                    </div>
+                </div>
+                <div class="lt-stat-card">
+                    <div class="lt-stat-icon">⏱️</div>
+                    <div class="lt-stat-info">
+                        <span class="lt-stat-value" id="lt-stat-elapsed">0s</span>
+                        <span class="lt-stat-label">Elapsed</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="lt-progress-wrap" id="lt-progress-wrap" style="display:none">
+                <div class="lt-progress-bar">
+                    <div class="lt-progress-fill" id="lt-progress-fill" style="width:0%"></div>
+                </div>
+                <span class="lt-progress-text" id="lt-progress-text">0%</span>
+            </div>
+        </section>
+
+        <!-- ===== EVENTS TAB ===== -->
+        <section class="tab-content" id="tab-events">
+            <!-- Worker Status Cards -->
+            <div class="section-header">
+                <h2>Kafka Event Workers</h2>
+                <button class="action-btn small secondary" id="btn-reload-events">↻ Refresh</button>
+            </div>
+            <div class="events-status-grid">
+                <div class="events-worker-card" id="evt-notification-card">
+                    <div class="events-worker-header">
+                        <span class="events-worker-icon">🔔</span>
+                        <span class="events-worker-name">Notification Worker</span>
+                        <span class="events-worker-badge" id="evt-notif-badge">—</span>
+                    </div>
+                    <div class="events-worker-stats">
+                        <div class="events-ws"><span class="events-ws-value" id="evt-notif-processed">—</span><span class="events-ws-label">Processed</span></div>
+                        <div class="events-ws"><span class="events-ws-value" id="evt-notif-errors">—</span><span class="events-ws-label">Errors</span></div>
+                        <div class="events-ws"><span class="events-ws-value" id="evt-notif-uptime">—</span><span class="events-ws-label">Uptime</span></div>
+                    </div>
+                </div>
+                <div class="events-worker-card" id="evt-inventory-card">
+                    <div class="events-worker-header">
+                        <span class="events-worker-icon">📦</span>
+                        <span class="events-worker-name">Inventory Worker</span>
+                        <span class="events-worker-badge" id="evt-inv-badge">—</span>
+                    </div>
+                    <div class="events-worker-stats">
+                        <div class="events-ws"><span class="events-ws-value" id="evt-inv-processed">—</span><span class="events-ws-label">Processed</span></div>
+                        <div class="events-ws"><span class="events-ws-value" id="evt-inv-errors">—</span><span class="events-ws-label">Errors</span></div>
+                        <div class="events-ws"><span class="events-ws-value" id="evt-inv-uptime">—</span><span class="events-ws-label">Uptime</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Notifications -->
+            <div class="section-header">
+                <h2>Recent Notifications</h2>
+            </div>
+            <div class="table-container">
+                <table class="data-table" id="notifications-table">
+                    <thead>
+                        <tr>
+                            <th>Event Type</th>
+                            <th>Order ID</th>
+                            <th>Channel</th>
+                            <th>Status</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="notifications-tbody">
+                        <tr><td colspan="5" class="loading-cell">Loading notifications...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Inventory Log -->
+            <div class="section-header">
+                <h2>Inventory Changes</h2>
+            </div>
+            <div class="table-container">
+                <table class="data-table" id="inventory-log-table">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Product ID</th>
+                            <th>Qty Changed</th>
+                            <th>Order ID</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory-log-tbody">
+                        <tr><td colspan="5" class="loading-cell">Loading inventory log...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
