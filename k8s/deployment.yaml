@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: order-service
-  namespace: argocd
 spec:
   replicas: 1
   selector:
@@ -17,5 +16,5 @@ spec:
         - name: order-service
           image: chywizz/order-service:1.0
           ports:
-             - containerPort: 5000
+             - containerPort: 5001
 
