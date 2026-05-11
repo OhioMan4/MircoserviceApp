@@ -1,0 +1,16 @@
+name:CI - for application 
+
+on :
+  push :
+    braches:
+      - main
+    paths:
+      - 'applications/**'
+
+permission:
+  contents: write
+
+
+
+
+
