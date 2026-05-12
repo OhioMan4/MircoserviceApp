@@ -53,7 +53,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./${{ matrix.service }}
+          context: ./applications/${{ matrix.service }}
           push: true
           tags: |
             ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:latest
