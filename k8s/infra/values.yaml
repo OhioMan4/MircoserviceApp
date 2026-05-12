@@ -1,2 +1,46 @@
+global:
+  otelEndpoint: 192.168.100.55:4317
+
+postgres:
+  image: postgres:16-alpine
+  db: orders
+  user: app
+  password: app_secret
+  storage: 1Gi
+  port: 5432
+
+redis:
+  image: redis:7-alpine
+  port: 6379
+
+kafka:
+  image: apache/kafka:3.7.0
+
 apiGateway:
-  image:
+  image: api-gateway:latest
+  port: 5000
+
+orderService:
+  image: order-service:latest
+  port: 5001
+
+paymentService:
+  image: payment-service:latest
+  port: 5002
+
+workers:
+  notification:
+    image: notification-worker:latest
+    port: 5004
+
+  inventory:
+    image: inventory-worker:latest
+    port: 5005
+
+trafficGen:
+  image: traffic-gen:latest
+  port: 5003
+
+webUI:
+  image: web-ui:latest
+  port: 8080
