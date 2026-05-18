@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: order-service
+
+  template:
+    metadata:
+      labels:
+        app: order-service
+
+    spec:
+      containers:
+        - name: order-service
+          image: {{ .Values.orderService.image }}
+          ports:
+            - containerPort: 5001
+
+          env:
+            - name: PAYMENT_SERVICE_URL
+              value: "http://payment-service:5002"
+
+            - name: DATABASE_URL
+              value: "postgresql://app:app_secret@postgres:5432/orders"
+
+            - name: REDIS_URL
+              value: "redis://redis:6379/0"
+
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:9092"
